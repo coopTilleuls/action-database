@@ -20,7 +20,7 @@ inputs:
 
 
 runs:
-  using: "ubuntu-latest"
+  using: "composite"
   steps:
     ## For debug only
     #- shell: bash
