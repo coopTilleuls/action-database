@@ -1,0 +1,151 @@
+inputs:
+  CLUSTER:
+    required: true
+  SECRETS_JSON:
+    required: true
+  ACTION:
+    required: true
+    default: "create"
+    description: "create, delete or export"
+  PREFIX_NAME:
+    required: true
+  NAMESPACE:
+    required: true
+  DB_USER:
+    required: true
+  DB_NAME:
+    required: true
+  SITE_BACK_DOMAIN:
+    required: false
+
+
+runs:
+  using: "ubuntu-latest"
+  steps:
+    ## For debug only
+    #- shell: bash
+    #  run: |
+    #    base64 <<EOF
+    #    ${{ toJSON(inputs) }}
+    #    EOF
+    #- shell: bash
+    #  run: |
+    #    env | sort
+    - shell: bash
+      id: install_sql_proxy
+      run: |
+        set -e
+        wget -nv https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 -O cloud_sql_proxy
+        chmod +x cloud_sql_proxy
+
+    - shell: bash
+      id: setup_sql_proxy_auth
+      run: |
+        set -e
+
+        if [ ! -f ~/.kube/config ]; then
+          echo "action kubernetes_set_env must be run before"
+          echo "this is needed to read/write db password in Kubernetes secret"
+          exit 1
+        fi
+
+        function get_input() {
+          local key=$1
+          jq -r ".$key // empty" <<EOF
+          ${{ inputs.SECRETS_JSON }}
+        EOF
+        }
+
+        CLUSTER=${{ inputs.CLUSTER }}
+        CLUSTER_UC=$(echo ${{ inputs.CLUSTER }} | tr a-z A-Z)
+        SQL_INSTANCE="$(get_input SQL_INSTANCE_${CLUSTER_UC})"
+        SQL_PROXY_AUTH_BASE64="$(get_input SQL_PROXY_AUTH_BASE64_${CLUSTER_UC})"
+        SQL_ADMIN_USER="$(get_input SQL_ADMIN_USER_${CLUSTER_UC})"
+        SQL_ADMIN_PASSWORD="$(get_input SQL_ADMIN_PASSWORD_${CLUSTER_UC})"
+
+        AUTH_FILE=/tmp/gce-cloudsql-proxy-key.json
+
+        # create sql auth config
+        base64 -d <<EOF > $AUTH_FILE
+        $SQL_PROXY_AUTH_BASE64
+        EOF
+
+        # launch proxy
+        ./cloud_sql_proxy \
+          -instances=$SQL_INSTANCE=tcp:0.0.0.0:3306 \
+          -credential_file $AUTH_FILE \
+          &
+
+        MYSQL_OPTIONS="-h 127.0.0.1 -P 3306 --connect-timeout=1 -u $SQL_ADMIN_USER -p$SQL_ADMIN_PASSWORD"
+        MYSQLDUMP_OPTIONS="-h 127.0.0.1 -P 3306 -u $SQL_ADMIN_USER -p$SQL_ADMIN_PASSWORD"
+        DB_NAME=${{ inputs.DB_NAME }}
+        DB_USER=${{ inputs.DB_USER }}
+
+        # test db connection via proxy
+        for i in $(seq 1 10); do
+          mysql $MYSQL_OPTIONS -e "select 1;" && break;
+          if [ $i -eq 10 ]; then
+            echo no connection to mysql after $i retry
+            exit 1
+          fi
+          sleep 1
+        done
+
+        # debug
+        set -x
+
+        if [ "${{ inputs.ACTION }}" == "create" ]; then
+          
+          # get or set db password in Kubernetes Secret
+          # if secret exist, read password, else create it
+          if kubectl get secret ${{ inputs.PREFIX_NAME }}-mysql; then
+            MYSQL_PASSWORD=$(kubectl get secret ${{ inputs.PREFIX_NAME }}-mysql -o=jsonpath='{.data.mysql-password}' | base64 -d)
+          else
+            MYSQL_PASSWORD=$(openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c14)
+            kubectl create secret generic ${{ inputs.PREFIX_NAME }}-mysql \
+              --from-literal=mysql-password=$MYSQL_PASSWORD
+          fi
+          
+          # create database if not exists
+          mysql $MYSQL_OPTIONS -e "create database if not exists \`$DB_NAME\`;"
+
+          # create user if not exists
+          mysql $MYSQL_OPTIONS -e "create user if not exists '$DB_USER'@'%' identified by '$MYSQL_PASSWORD';"
+
+          # grant privileges
+          mysql $MYSQL_OPTIONS -e "grant all privileges on \`$DB_NAME\`.* TO '$DB_USER'@'%';"
+
+          #DOMAIN_SUFFIX=${{ inputs.DOMAIN_SUFFIX }}
+          #PREFIX_NAME=${{ inputs.PREFIX_NAME }}
+          #NAMESPACE=${{ inputs.NAMESPACE }}
+          SITE_BACK_URL="https://${{ inputs.SITE_BACK_DOMAIN }}"
+
+          # import database
+          if [ "${{ inputs.PREFIX_NAME }}" == "main" ]; then
+            echo "We never import database on production"
+            exit 1
+          else
+            echo "always re-import database"
+            echo "some tables are excluded for ci/cd performance"
+            zcat latest.sql.gz | egrep -v 'INSERT INTO `(wp_matomo_(log|archive)|wp_redirection_404)' | sed -e "s#http://localhost:8080#$SITE_BACK_URL#g" | mysql $MYSQL_OPTIONS $DB_NAME
+          fi
+
+        fi
+
+        if [ "${{ inputs.ACTION }}" == "export" ] ;then
+          DATEDJ=$(date +%F)
+          SITE_BACK_URL="https://${{ inputs.SITE_BACK_DOMAIN }}"
+          mysqldump $MYSQLDUMP_OPTIONS --opt $DB_NAME --set-gtid-purged=OFF | sed -e "s#$SITE_BACK_URL#http://localhost:8080#g" | gzip > ${DATEDJ}-dump.sql.gz
+
+        fi
+
+        if [ "${{ inputs.ACTION }}" == "delete" ]; then
+          if [ "${{ inputs.PREFIX_NAME }}" == "main" ]; then
+            echo "We never delete production"
+            exit 1
+          else
+            mysql $MYSQL_OPTIONS -e "drop database if exists \`$DB_NAME\`;"
+            mysql $MYSQL_OPTIONS -e "drop user if exists '$DB_USER'@'%';"
+            kubectl delete secret ${{ inputs.PREFIX_NAME }}-mysql
+          fi
+        fi
