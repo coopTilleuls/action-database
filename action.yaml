@@ -17,6 +17,8 @@ inputs:
     required: true
   SITE_BACK_DOMAIN:
     required: false
+  SITE_FRONT_DOMAIN:
+    required: false
 
 
 runs:
@@ -119,6 +121,7 @@ runs:
           #PREFIX_NAME=${{ inputs.PREFIX_NAME }}
           #NAMESPACE=${{ inputs.NAMESPACE }}
           SITE_BACK_URL="https://${{ inputs.SITE_BACK_DOMAIN }}"
+          SITE_FRONT_URL="https://${{ inputs.SITE_FRONT_DOMAIN }}"
 
           # import database
           if [ "${{ inputs.PREFIX_NAME }}" == "main" ]; then
@@ -127,7 +130,7 @@ runs:
           else
             echo "always re-import database"
             echo "some tables are excluded for ci/cd performance"
-            zcat latest.sql.gz | egrep -v 'INSERT INTO `(wp_matomo_(log|archive)|wp_redirection_404)' | sed -e "s#http://localhost:8080#$SITE_BACK_URL#g" | mysql $MYSQL_OPTIONS $DB_NAME
+            zcat latest.sql.gz | egrep -v 'INSERT INTO `(wp_matomo_(log|archive)|wp_redirection_404)' | sed -e "s#http://localhost:8080#$SITE_BACK_URL#g" -e "s#http://localhost:3000#$SITE_FRONT_URL#g" | mysql $MYSQL_OPTIONS $DB_NAME
           fi
 
         fi
