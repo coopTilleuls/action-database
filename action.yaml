@@ -15,10 +15,10 @@ inputs:
     required: true
   DB_NAME:
     required: true
-  SITE_BACK_DOMAIN:
+  DUMP_SUBSTITUTIONS:
     required: false
-  SITE_FRONT_DOMAIN:
-    required: false
+    default: "[]"
+    description: "json array of search/replacement to apply before inserting dump (or inverted during dump). This must not contains # (used as sed delimiter)"
 
 
 runs:
@@ -96,6 +96,24 @@ runs:
         # debug
         set -x
 
+        # this function replace all search/replace from the DUMP_SUBSTITUTIONS input
+        # this can be reverted for db exports
+        function dump_substitute() {
+          FILE=$1
+          REVERT=$2
+          for i in $(seq 0 $(expr $(jq ". | length" substitutions.json) - 1 )); do
+            if [ -z "$REVERT" ]; then
+              sed -i -e 's#'$(jq -r ".[$i].search" substitutions.json)'#'$(jq -r ".[$i].replace" substitutions.json)'#g' $FILE
+            else
+              sed -i -e 's#'$(jq -r ".[$i].replace" substitutions.json)'#'$(jq -r ".[$i].search" substitutions.json)'#g' $FILE
+            fi
+          done
+        }
+
+        cat > substitutions.json <<EOF
+          ${{ inputs.DUMP_SUBSTITUTIONS }}
+        EOF
+
         if [ "${{ inputs.ACTION }}" == "create" ]; then
           
           # get or set db password in Kubernetes Secret
@@ -117,12 +135,6 @@ runs:
           # grant privileges
           mysql $MYSQL_OPTIONS -e "grant all privileges on \`$DB_NAME\`.* TO '$DB_USER'@'%';"
 
-          #DOMAIN_SUFFIX=${{ inputs.DOMAIN_SUFFIX }}
-          #PREFIX_NAME=${{ inputs.PREFIX_NAME }}
-          #NAMESPACE=${{ inputs.NAMESPACE }}
-          SITE_BACK_URL="https://${{ inputs.SITE_BACK_DOMAIN }}"
-          SITE_FRONT_URL="https://${{ inputs.SITE_FRONT_DOMAIN }}"
-
           # import database
           if [ "${{ inputs.PREFIX_NAME }}" == "main" ]; then
             echo "We never import database on production"
@@ -130,7 +142,10 @@ runs:
           else
             echo "always re-import database"
             echo "some tables are excluded for ci/cd performance"
-            zcat latest.sql.gz | egrep -v 'INSERT INTO `(wp_matomo_(log|archive)|wp_redirection_404)' | sed -e "s#http://localhost:8080#$SITE_BACK_URL#g" -e "s#http://localhost:3000#$SITE_FRONT_URL#g" | mysql $MYSQL_OPTIONS $DB_NAME
+            gunzip latest.sql.gz
+            # call DUMP_SUBSTITUTIONS replacement function
+            dump_substitute latest.sql
+            cat latest.sql | mysql $MYSQL_OPTIONS $DB_NAME
           fi
 
         fi
@@ -138,7 +153,10 @@ runs:
         if [ "${{ inputs.ACTION }}" == "export" ] ;then
           DATEDJ=$(date +%F)
           SITE_BACK_URL="https://${{ inputs.SITE_BACK_DOMAIN }}"
-          mysqldump $MYSQLDUMP_OPTIONS --opt $DB_NAME --set-gtid-purged=OFF | sed -e "s#$SITE_BACK_URL#http://localhost:8080#g" | gzip > ${DATEDJ}-dump.sql.gz
+          mysqldump $MYSQLDUMP_OPTIONS --opt $DB_NAME --set-gtid-purged=OFF > ${DATEDJ}-dump.sql
+          # call DUMP_SUBSTITUTIONS replacement function, revert mode during export
+          dump_substitute ${DATEDJ}-dump.sql
+          gzip ${DATEDJ}-dump.sql
 
         fi
 
