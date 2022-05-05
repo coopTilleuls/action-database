@@ -136,16 +136,20 @@ runs:
           mysql $MYSQL_OPTIONS -e "grant all privileges on \`$DB_NAME\`.* TO '$DB_USER'@'%';"
 
           # import database
-          if [ "${{ inputs.PREFIX_NAME }}" == "main" ]; then
-            echo "We never import database on production"
-            exit 1
+          if [ ! -f "latest.sql.gz" ]; then
+            echo "Nothing to import"
           else
-            echo "always re-import database"
-            echo "some tables are excluded for ci/cd performance"
-            gunzip latest.sql.gz
-            # call DUMP_SUBSTITUTIONS replacement function
-            dump_substitute latest.sql
-            cat latest.sql | mysql $MYSQL_OPTIONS $DB_NAME
+            if [ "${{ inputs.PREFIX_NAME }}" == "main" ]; then
+              echo "We never import database on production"
+              exit 1
+            else
+              echo "always re-import database"
+              echo "some tables are excluded for ci/cd performance"
+              gunzip latest.sql.gz
+              # call DUMP_SUBSTITUTIONS replacement function
+              dump_substitute latest.sql
+              cat latest.sql | mysql $MYSQL_OPTIONS $DB_NAME
+            fi
           fi
 
         fi
