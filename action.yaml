@@ -65,6 +65,26 @@ runs:
         SQL_ADMIN_USER="$(get_input SQL_ADMIN_USER_${CLUSTER_UC})"
         SQL_ADMIN_PASSWORD="$(get_input SQL_ADMIN_PASSWORD_${CLUSTER_UC})"
 
+        if [ -z "$SQL_PROXY_AUTH_BASE64" ]; then
+          echo "SQL_PROXY_AUTH_BASE64_${CLUSTER_UC} secret is missing"
+          exit=1
+        fi
+        if [ -z "$SQL_INSTANCE" ]; then
+          echo "SQL_INSTANCE_${CLUSTER_UC} secret is missing"
+          exit=1
+        fi
+        if [ -z "$SQL_ADMIN_USER" ]; then
+          echo "SQL_ADMIN_USER_${CLUSTER_UC} secret is missing"
+          exit=1
+        fi
+        if [ -z "$SQL_ADMIN_PASSWORD" ]; then
+          echo "SQL_ADMIN_PASSWORD_${CLUSTER_UC} secret is missing"
+          exit=1
+        fi
+        if [ -n "$exit" ]; then
+          exit 1
+        fi
+
         AUTH_FILE=/tmp/gce-cloudsql-proxy-key.json
 
         # create sql auth config
