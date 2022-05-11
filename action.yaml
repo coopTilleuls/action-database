@@ -6,7 +6,7 @@ inputs:
   ACTION:
     required: true
     default: "create"
-    description: "create, delete or export"
+    description: "create, delete, import or export"
   PREFIX_NAME:
     required: true
   NAMESPACE:
@@ -37,8 +37,8 @@ runs:
       id: install_sql_proxy
       run: |
         set -e
-        wget -nv https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 -O cloud_sql_proxy
-        chmod +x cloud_sql_proxy
+        test -f cloud_sql_proxy || wget -nv https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 -O cloud_sql_proxy
+        test -x cloud_sql_proxy || chmod +x cloud_sql_proxy
 
     - shell: bash
       id: setup_sql_proxy_auth
@@ -154,22 +154,19 @@ runs:
 
           # grant privileges
           mysql $MYSQL_OPTIONS -e "grant all privileges on \`$DB_NAME\`.* TO '$DB_USER'@'%';"
+        fi
+
+        if [ "${{ inputs.ACTION }}" == "import" ]; then
 
           # import database
           if [ ! -f "latest.sql.gz" ]; then
             echo "Nothing to import"
           else
-            if [ "${{ inputs.PREFIX_NAME }}" == "main" -o "${{ inputs.PREFIX_NAME }}" == "prod" ]; then
-              echo "We never import database on production"
-              exit 1
-            else
-              echo "always re-import database"
-              echo "some tables are excluded for ci/cd performance"
-              gunzip latest.sql.gz
-              # call DUMP_SUBSTITUTIONS replacement function
-              dump_substitute latest.sql
-              cat latest.sql | mysql $MYSQL_OPTIONS $DB_NAME
-            fi
+            echo "some tables are excluded for ci/cd performance"
+            gunzip latest.sql.gz
+            # call DUMP_SUBSTITUTIONS replacement function
+            dump_substitute latest.sql
+            cat latest.sql | mysql $MYSQL_OPTIONS $DB_NAME
           fi
 
         fi
@@ -194,3 +191,6 @@ runs:
             kubectl delete secret ${{ inputs.PREFIX_NAME }}-mysql
           fi
         fi
+
+        # stop sql proxy
+        kill %1
