@@ -159,7 +159,7 @@ runs:
           if [ ! -f "latest.sql.gz" ]; then
             echo "Nothing to import"
           else
-            if [ "${{ inputs.PREFIX_NAME }}" == "main" ]; then
+            if [ "${{ inputs.PREFIX_NAME }}" == "main" -o "${{ inputs.PREFIX_NAME }}" == "prod" ]; then
               echo "We never import database on production"
               exit 1
             else
@@ -185,7 +185,7 @@ runs:
         fi
 
         if [ "${{ inputs.ACTION }}" == "delete" ]; then
-          if [ "${{ inputs.PREFIX_NAME }}" == "main" ]; then
+          if [ "${{ inputs.PREFIX_NAME }}" == "main" -o "${{ inputs.PREFIX_NAME }}" == "prod" ]; then
             echo "We never delete production"
             exit 1
           else
