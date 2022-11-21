@@ -176,7 +176,7 @@ runs:
           SITE_BACK_URL="https://${{ inputs.SITE_BACK_DOMAIN }}"
           mysqldump $MYSQLDUMP_OPTIONS --opt $DB_NAME --set-gtid-purged=OFF > ${DATEDJ}-dump.sql
           # call DUMP_SUBSTITUTIONS replacement function, revert mode during export
-          dump_substitute ${DATEDJ}-dump.sql
+          dump_substitute ${DATEDJ}-dump.sql revert
           gzip ${DATEDJ}-dump.sql
 
         fi
