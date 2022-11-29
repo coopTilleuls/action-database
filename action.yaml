@@ -174,7 +174,7 @@ runs:
         if [ "${{ inputs.ACTION }}" == "export" ] ;then
           DATEDJ=$(date +%F)
           SITE_BACK_URL="https://${{ inputs.SITE_BACK_DOMAIN }}"
-          mysqldump $MYSQLDUMP_OPTIONS --opt $DB_NAME --set-gtid-purged=OFF > ${DATEDJ}-dump.sql
+          mysqldump $MYSQLDUMP_OPTIONS --opt $DB_NAME --set-gtid-purged=OFF --single-transaction > ${DATEDJ}-dump.sql
           # call DUMP_SUBSTITUTIONS replacement function, revert mode during export
           dump_substitute ${DATEDJ}-dump.sql revert
           gzip ${DATEDJ}-dump.sql
