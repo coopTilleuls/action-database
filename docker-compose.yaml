@@ -1,0 +1,10 @@
+services:
+  script:
+    build: docker
+    env_file: .env.dev
+    volumes:
+      - ./script.sh:/script.sh:ro
+      - ./docker/data/kubeconfig:/root/.kube/config:ro
+      - ./docker/data/mysql.sql.gz:/mysql.sql.gz:ro
+      - ./docker/data/postgresql.sql.gz:/postgresql.sql.gz:ro
+    command: ['bash', '/script.sh']
