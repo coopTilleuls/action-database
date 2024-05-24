@@ -232,7 +232,7 @@ if [ "${ACTION}" == "import" ]; then
         dump_substitute ${DUMP_FILENAME}.sql
 
         if [[ $DBMS == 'mysql' ]]; then
-            cat ${DUMP_FILENAME}.sql | mysql $MYSQL_OPTIONS $DB_NAME
+            cat ${DUMP_FILENAME}.sql | egrep -v 'INSERT INTO `(wp_matomo_(log|archive)|wp_redirection_404)' | mysql $MYSQL_OPTIONS $DB_NAME
         else
             psql $CONNPARAMS/${DB_NAME} < ${DUMP_FILENAME}.sql
         fi
