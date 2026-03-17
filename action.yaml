@@ -24,6 +24,10 @@ inputs:
     required: true
     default: "[]"
     description: "json array of search/replacement to apply before inserting dump (or inverted during dump). This must not contains # (used as sed delimiter)"
+  IMPORT_FILTER:
+    required: false
+    description: "command to filter dump before import, like grep -v ..."
+    default: "cat"
 
 runs:
   using: "composite"
@@ -55,3 +59,4 @@ runs:
         DB_NAME: ${{ inputs.DB_NAME }}
         DUMP_FILENAME: ${{ inputs.DUMP_FILENAME }}
         DUMP_SUBSTITUTIONS: ${{ inputs.DUMP_SUBSTITUTIONS }}
+        IMPORT_FILTER: ${{ inputs.IMPORT_FILTER }}

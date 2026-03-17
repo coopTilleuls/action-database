@@ -232,9 +232,9 @@ if [ "${ACTION}" == "import" ]; then
         dump_substitute ${DUMP_FILENAME}.sql
 
         if [[ $DBMS == 'mysql' ]]; then
-            cat ${DUMP_FILENAME}.sql | mysql $MYSQL_OPTIONS $DB_NAME
+            cat ${DUMP_FILENAME}.sql | ${IMPORT_FILTER} | mysql $MYSQL_OPTIONS $DB_NAME
         else
-            psql $CONNPARAMS/${DB_NAME} < ${DUMP_FILENAME}.sql
+            cat ${DUMP_FILENAME}.sql | ${IMPORT_FILTER} | psql $CONNPARAMS/${DB_NAME}
         fi
     fi
 
