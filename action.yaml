@@ -45,7 +45,6 @@ runs:
       # a checkout action of `coopTilleuls/action-database` must be set with `path: 'action-database'`
       run: |
         set -e
-        cd action-database
         test -f cloud_sql_proxy || wget -nv https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 -O cloud_sql_proxy
         test -x cloud_sql_proxy || chmod +x cloud_sql_proxy
         bash script.sh
