@@ -47,7 +47,7 @@ runs:
         set -e
         test -f cloud_sql_proxy || wget -nv https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 -O cloud_sql_proxy
         test -x cloud_sql_proxy || chmod +x cloud_sql_proxy
-        bash script.sh
+        bash ${{ github.action_path }}/script.sh
       env:
         SECRETS_JSON: ${{ inputs.SECRETS_JSON }}
         DBMS: ${{ inputs.DBMS }}
