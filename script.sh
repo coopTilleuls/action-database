@@ -42,6 +42,11 @@ if [ -z "$DUMP_SUBSTITUTIONS" ]; then
     exit=1
 fi
 
+if [ -z "$IMPORT_FILTER" ]; then
+    echo "using default IMPORT_FILTER=cat"
+    IMPORT_FILTER=cat
+    exit=1
+fi
 
 if [ -n "$exit" ]; then
     exit 1
