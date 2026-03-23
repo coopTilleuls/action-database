@@ -44,7 +44,7 @@ fi
 
 if [ -z "$IMPORT_FILTER" ]; then
     echo "using default IMPORT_FILTER=cat"
-    IMPORT_FILTER=cat
+    IMPORT_FILTER="inexistant_string"
     exit=1
 fi
 
@@ -237,9 +237,9 @@ if [ "${ACTION}" == "import" ]; then
         dump_substitute ${DUMP_FILENAME}.sql
 
         if [[ $DBMS == 'mysql' ]]; then
-            cat ${DUMP_FILENAME}.sql | ${IMPORT_FILTER} | mysql $MYSQL_OPTIONS $DB_NAME
+            cat ${DUMP_FILENAME}.sql | egrep -v "${IMPORT_FILTER}" | mysql $MYSQL_OPTIONS $DB_NAME
         else
-            cat ${DUMP_FILENAME}.sql | ${IMPORT_FILTER} | psql $CONNPARAMS/${DB_NAME}
+            cat ${DUMP_FILENAME}.sql | egrep -v "${IMPORT_FILTER}" | psql $CONNPARAMS/${DB_NAME}
         fi
     fi
 
